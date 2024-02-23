@@ -1,18 +1,13 @@
-import os, sys
-import yaml
+import os
 import importlib
 import logging
-from itertools import product
-from more_itertools import collapse
 
 import torch
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 import wandb
-
 from simple_slurm import Slurm
-
 from .config_utils import handle_config_cases
 
 
@@ -61,9 +56,10 @@ def build_model(model_config):  # M
 
 
 def get_logger(model_config):  # M
-
+    logger = None
     logger_choice = model_config["logger"]
-    if "project" not in model_config.keys(): model_config["project"] = "my_project"
+    if "project" not in model_config.keys():
+        model_config["project"] = "my_project"
     
     if logger_choice == "wandb":
         logger = WandbLogger(
@@ -79,7 +75,7 @@ def get_logger(model_config):  # M
             version=model_config["resume_id"],
         )
 
-    elif logger_choice == None:
+    elif logger_choice is None:
         logger = None
 
     logging.info("Logger retrieved")
@@ -114,27 +110,31 @@ def build_trainer(model_config, logger):  # M
         monitor=fom, save_top_k=2, save_last=True, mode=fom_mode
     )
 
-    gpus = 1 if torch.cuda.is_available() else 0
+    # FIXME: Handle devices (currently, GPUs or CPUs)
+    device = "gpu" if torch.cuda.is_available() else "cpu"
 
     # Handle resume condition
     if model_config["resume_id"] is None:
         # The simple case: We start fresh
         trainer = pl.Trainer(
-            max_epochs=model_config["max_epochs"],
-            gpus=gpus,
+            accelerator=device,                          # ADAK: accelerator=device
+            devices=-1,                                  # ADAK: devices=-1
             logger=logger,
+            max_epochs=model_config["max_epochs"],           
             callbacks=callback_objects(model_config)+[checkpoint_callback],
         )
     else:
         num_sanity = model_config["sanity_steps"] if "sanity_steps" in model_config else 2
+        
         # Here we assume
         trainer = pl.Trainer(
-            resume_from_checkpoint=model_config["checkpoint_path"],
-            max_epochs=model_config["max_epochs"],
-            gpus=gpus,
-            num_sanity_val_steps=num_sanity,
+            ckpt_path=model_config["checkpoint_path"],   # ADAK: ckpt_path=model_config["checkpoint_path"]
+            accelerator=device,                          # ADAK: accelerator=device
+            devices=-1,                                  # ADAK: devices=-1
             logger=logger,
+            max_epochs=model_config["max_epochs"],
             callbacks=callback_objects(model_config)+[checkpoint_callback],
+            num_sanity_val_steps=num_sanity,
         )
 
     logging.info("Trainer built")

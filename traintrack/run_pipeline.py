@@ -25,6 +25,7 @@ from traintrack.utils.model_utils import (
     build_trainer,
 )
 
+
 def parse_batch_pipeline():
 
     """Parse command line arguments."""
@@ -104,6 +105,7 @@ def train_stage(model, model_config):
             
     trainer.test(model)
 
+
 def data_stage(model, model_config):
     logging.info("Preparing data")
     model.prepare_data()
@@ -111,7 +113,7 @@ def data_stage(model, model_config):
 
 def start(args):
 
-    print(args)
+    print("Pipeline Arguments: ", args)  # ADAK
 
     with open(args.pipeline_config) as f:
         pipeline_config = yaml.load(f, Loader=yaml.FullLoader)
@@ -122,12 +124,14 @@ def start(args):
     # Make models available to the pipeline
     sys.path.append(
         project_config["libraries"]["model_library"]
-    )  #  !!  TEST WITHOUT THIS LINE IN MAIN()
+    )  # TEST WITHOUT THIS LINE IN MAIN() !!
 
     # This is the current slurm ID to handle serial dependency
     running_id = None
     for stage in pipeline_config["stage_list"]:
-
+        
+        print("Running Stage: ", stage)  # ADAK
+        
         # Set resume_id if it is given, else it is None and new model is built
         resume_id = get_resume_id(stage)
 

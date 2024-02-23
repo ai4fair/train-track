@@ -91,7 +91,7 @@ def load_config(stage, resume_id, project_config, run_args):  # C
 
     else:
         ckpnt_path = find_checkpoint(
-            resume_id, project_config["libraries"]["artifact_library"]
+            resume_id, project_config["libraries"]["artifact_library"]  # FIXME: It should add project: GNNStudy from model_cofig
         )
         ckpnt = torch.load(ckpnt_path, map_location=torch.device("cpu"))
         config = ckpnt["hyper_parameters"]

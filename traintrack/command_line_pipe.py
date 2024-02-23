@@ -17,11 +17,9 @@ Todo:
 """
 
 
-import sys, os
+import sys
 import argparse
-import yaml
 import logging
-
 from traintrack import run_pipeline
 
 
@@ -52,6 +50,7 @@ def parse_pipeline():
 
     return run_parsed, model_parsed
 
+
 def main():
 
     print("Running from top with args:", sys.argv)
@@ -59,7 +58,6 @@ def main():
 
     logging_level = logging.INFO if run_args.verbose else logging.WARNING
     logging.basicConfig(level=logging_level)
-    #     logging.basicConfig(level=logging.INFO)
     logging.info("Parsed run args: {}".format(run_args))
     logging.info("Parsed model args: {}".format(model_args))
 
