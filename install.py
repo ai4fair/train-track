@@ -1,6 +1,9 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+import os
 import subprocess
 import sys
-import os
 
 
 def install(package, file_link=None, r=False, e=False):
