@@ -83,3 +83,10 @@ venv.bak/
 
 # W&B
 *wandb*
+
+*.log
+*.def
+configs
+data*
+run*
+LightningModules

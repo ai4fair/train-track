@@ -1,30 +1,50 @@
-import os
-import yaml
-import importlib
+#!/usr/bin/env python
+# coding: utf-8
+
+"""
+Utilities for configuration management in TrainTrack.
+
+This module provides functions for handling configuration files, loading and 
+combining configurations, finding checkpoints, and submitting batch jobs.
+It handles the core configuration logic that powers the pipeline execution.
+"""
+
 import logging
+import os
 from itertools import product
-from more_itertools import collapse
-import subprocess
 
 import torch
-import pytorch_lightning as pl
-from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
-from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
-
+import yaml
+from more_itertools import collapse
 from simple_slurm import Slurm
 
 
-def find_checkpoint(run_id, path):  # M
-    for (root_dir, dirs, files) in os.walk(path):
+def find_checkpoint(run_id, path):
+    """
+    Find a checkpoint file for a specific run ID.
+
+    Args:
+        run_id (str): The run ID to search for
+        path (str): Base path to search in
+
+    Returns:
+        str: Path to the checkpoint file, or None if not found
+    """
+    for root_dir, dirs, files in os.walk(path):
         if run_id in dirs:
             latest_run_path = os.path.join(root_dir, run_id, "checkpoints/last.ckpt")
             return latest_run_path
 
 
-def handle_config_cases(some_config):  # C
-
+def handle_config_cases(some_config):
     """
-    Simply used to standardise the possible config entries. We always want a list
+    Standardize configuration entries to always be a list.
+
+    Args:
+        some_config: Configuration item which may be a list, None, or a single value
+
+    Returns:
+        list: The input converted to a list
     """
     if type(some_config) is list:
         return some_config
@@ -34,8 +54,18 @@ def handle_config_cases(some_config):  # C
         return [some_config]
 
 
-def submit_batch(config, project_config, running_id=None):  # C
+def submit_batch(config, project_config, running_id=None):
+    """
+    Submit a stage to a SLURM batch system.
 
+    Args:
+        config (dict): Configuration for the stage to run
+        project_config (dict): Project-wide configuration
+        running_id (str, optional): ID of a previous job to depend on
+
+    Returns:
+        str: The job ID of the submitted job
+    """
     with open(config["batch_config"]) as f:
         batch_config = yaml.load(f, Loader=yaml.FullLoader)
 
@@ -43,7 +73,7 @@ def submit_batch(config, project_config, running_id=None):  # C
     slurm = Slurm(**batch_config)
 
     if running_id is not None and project_config["serial"]:
-        print("Dependency on ID: {}".format(running_id))
+        logging.info(f"Dependency on ID: {running_id}")
         slurm.set_dependency(dict(afterok=running_id))
 
     custom_batch_setup = project_config["custom_batch_setup"]
@@ -65,20 +95,44 @@ def submit_batch(config, project_config, running_id=None):  # C
 
     logging.info(slurm_command)
     job_id = slurm.sbatch(slurm_command, sbatch_cmd=slurm_setup, shell="/bin/bash")
-    print("Job ID: {}".format(job_id))
+    logging.info(f"Job ID: {job_id}")
     return job_id
 
 
-def find_config(name, path):  # C
+def find_config(name, path):
+    """
+    Find a configuration file by name in a directory tree.
+
+    Args:
+        name (str): Filename to search for
+        path (str): Base path to search in
+
+    Returns:
+        str: Full path to the found configuration file, or None if not found
+    """
     for root, dirs, files in os.walk(path):
         if name in files:
             return os.path.join(root, name)
 
 
-def load_config(stage, resume_id, project_config, run_args):  # C
+def load_config(stage, resume_id, project_config, run_args):
+    """
+    Load and prepare a configuration for a stage.
 
+    This function handles loading stage-specific configuration, either from a file
+    or from a checkpoint, and combines it with project-wide configuration and
+    command-line arguments.
+
+    Args:
+        stage (dict): Stage configuration dictionary
+        resume_id (str, optional): ID to resume from
+        project_config (dict): Project-wide configuration
+        run_args: Command-line arguments
+
+    Returns:
+        dict: Combined configuration for the stage
+    """
     if resume_id is None:
-
         stage_config_file = find_config(
             stage["config"],
             os.path.join(project_config["libraries"]["model_library"], stage["set"]),
@@ -105,14 +159,28 @@ def load_config(stage, resume_id, project_config, run_args):  # C
     config.update(stage)
     if ("inference" in run_args) and run_args.inference:
         config["inference"] = True
-    elif ("inference" in run_args) and (not run_args.inference) and (not run_args.slurm):
+    elif (
+        ("inference" in run_args) and (not run_args.inference) and (not run_args.batch)
+    ):
         config["inference"] = False
-        
+
     logging.info("Config found and built")
     return config
 
 
-def combo_config(config):  # C
+def combo_config(config):
+    """
+    Generate combination configurations from a configuration with list values.
+
+    This function creates a list of configuration dictionaries by taking the
+    cartesian product of all list values in the input configuration.
+
+    Args:
+        config (dict): Configuration dictionary with possibly list values
+
+    Returns:
+        list: List of configuration dictionaries
+    """
     total_list = {k: (v if type(v) == list else [v]) for (k, v) in config.items()}
     keys, values = zip(*total_list.items())
 
@@ -123,7 +191,16 @@ def combo_config(config):  # C
     return config_list
 
 
-def dict_to_args(config):  # C
+def dict_to_args(config):
+    """
+    Convert a configuration dictionary to command-line arguments string.
+
+    Args:
+        config (dict): Configuration dictionary
+
+    Returns:
+        str: Command-line arguments string
+    """
     collapsed_list = list(collapse([["--" + k, v] for k, v in config.items()]))
     collapsed_list = [str(entry) for entry in collapsed_list]
     command_line_args = " ".join(collapsed_list)
